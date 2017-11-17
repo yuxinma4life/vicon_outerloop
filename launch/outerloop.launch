@@ -1,0 +1,32 @@
+<launch>
+    <arg name="quad_name" value="quad_small_1" />
+    <include file="$(find vicon)/launch/vicon.launch"/>
+    <include file="$(find vicon_odom)/launch/vicon_odom.launch">
+        <arg name="model" value="$(arg quad_name)" />
+    </include>
+    <node name="outerloop"
+        pkg="vicon_outerloop"
+        type="vicon_outerloop_node"
+        args="$(arg quad_name)" 
+        respawn="true"
+        output="screen">
+
+        <param name="target_x" value="0" />
+        <param name="target_y" value="0" />
+        <param name="target_z" value="1" />
+
+        <param name="kp_p" value="0.65" />
+        <param name="kd_p" value="0.5" />
+        <param name="ki_p" value="0.0" />
+
+        <param name="kp_r" value="0.65" />
+        <param name="kd_r" value="0.5" />
+        <param name="ki_r" value="0.0" />
+
+        <param name="kp_y" value="0.65" />
+        <param name="kd_y" value="0.5" />
+        <param name="ki_y" value="0.0" />
+
+        <param name="port" type="str" value="/dev/ttyACM0"/>
+    </node>
+</launch>

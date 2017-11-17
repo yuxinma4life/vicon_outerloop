@@ -1,0 +1,10 @@
+<launch>
+  <node name="pos_plot"
+        pkg="rqt_plot"
+        type="rqt_plot"
+        args="/quad_small_1/odom/pose/pose/position/x /quad_small_1/odom/pose/pose/position/y /quad_small_1/odom/pose/pose/position/z" />
+  <node name="vel_plot"
+        pkg="rqt_plot"
+        type="rqt_plot"
+        args="/quad_small_1/odom/twist/twist/linear/x /quad_small_1/odom/twist/twist/linear/y /quad_small_1/odom/twist/twist/linear/z" />
+</launch>
