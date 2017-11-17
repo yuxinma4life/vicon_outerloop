@@ -23,8 +23,8 @@
         <param name="kd_r" value="0.5" />
         <param name="ki_r" value="0.0" />
 
-        <param name="kp_y" value="0.65" />
-        <param name="kd_y" value="0.5" />
+        <param name="kp_y" value="0.005" />
+        <param name="kd_y" value="0.0005" />
         <param name="ki_y" value="0.0" />
 
         <param name="port" type="str" value="/dev/ttyACM0"/>

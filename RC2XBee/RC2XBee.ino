@@ -123,7 +123,7 @@ void loop() {
     //Serial.println("discarding");
 
   } else {
-     Serial.println(rc_in[1]);
+     //Serial.println(rcValue[3]);
      //Serial.println(rcValue[4]);
     // process channel information here
     if (rcValue[4] > 1200) {
@@ -142,14 +142,16 @@ void loop() {
 
         TK1_roll = rcValue[1]-vicon_roll+1500;
         TK1_pitch = rcValue[2]+vicon_pitch-1500;
-        TK_yaw = rcValue[3]+vicon_yaw -1500;
+        TK1_yaw = rcValue[3]+vicon_yaw -1500;
+
+        Serial.println(TK1_yaw);
         
         //Serial.print(TK1_roll);
         //Serial.print("  ");
         //Serial.println(TK1_pitch);
         //write TK1 commands
 
-      generateDsmxData(rcValue[0], TK1_roll, TK1_pitch, rcValue[3], rcValue[4], rcValue[5]);
+      generateDsmxData(rcValue[0], TK1_roll, TK1_pitch, TK1_yaw, rcValue[4], rcValue[5]);
     } else {
       //pass on the RC commands
       generateDsmxData(rcValue[0], rcValue[1], rcValue[2], rcValue[3], rcValue[4], rcValue[5]);
@@ -251,3 +253,4 @@ void generateDsmxData(int throttle, int roll, int pitch, int yaw, int AUX1, int 
   rc_out[15] = bl_r;
 
 }
+

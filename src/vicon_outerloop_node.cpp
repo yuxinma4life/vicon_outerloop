@@ -8,18 +8,20 @@
 #include <serial/serial.h>
 #include <iostream>
 #include "tf/transform_datatypes.h"
+
+#define pi 3.14159265359
 /*
  * PD controller tuning constants
  */
 double kp1 = 0.8;
 double kp2 = 0.8;
 double kp3 = 0.8;
-double kp_yaw = 0.8;
+double kp_yaw = 0.02;
 
 double kd1 = 0.5;
 double kd2 = 0.5;
 double kd3 = 0.5;
-double kd_yaw = 0.5;
+double kd_yaw = 0.001;
 
 /*
  * variable needed to calculate velocity from slamdunk pose
@@ -50,7 +52,7 @@ double a3 = 0;
 double rt1 = 0;
 double rt2 = 0;
 double rt3 = 1;
-double yaw_t = 0;
+double yaw_t = 180;
 
 double vt1 = 0;
 double vt2 = 0;
@@ -105,9 +107,14 @@ void chatterCallback(const nav_msgs::Odometry::ConstPtr& msg)
 	r3 = msg->pose.pose.position.z;
 	tf::Quaternion q(msg->pose.pose.orientation.x,msg->pose.pose.orientation.y,msg->pose.pose.orientation.z,msg->pose.pose.orientation.w);
 	tf::Matrix3x3 m(q);
-	double roll, pitch, yaw;
+	double roll, pitch;
     m.getRPY(roll, pitch, yaw);
-    ROS_INFO("yaw: %f",yaw);
+    yaw = (yaw/(pi))*180.0;
+    if(yaw <0) yaw+= 360.0;
+    roll = (roll/(2*pi))*180.0;
+    pitch = (pitch/(2*pi))*180.0;
+    //ROS_INFO("roll pitch yaw: %f %f %f", roll, pitch, yaw); 
+    //ROS_INFO("yaw: %f",yaw);
 
 	//v1 = msg->twist.twist.linear.x;
 	//v2 = msg->twist.twist.linear.y;
@@ -135,8 +142,8 @@ int main(int argc, char **argv)
 	n.getParam("/outerloop/kp_r",kp2);
 	n.getParam("/outerloop/kd_r",kd2);
 
-	n.getParam("/outerloop/kp_y",kp3);
-	n.getParam("/outerloop/kd_y",kd3);
+	n.getParam("/outerloop/kp_y",kp_yaw);
+	n.getParam("/outerloop/kd_y",kd_yaw);
 
 
 	std::string quad_name = argv[1];
@@ -200,7 +207,7 @@ int main(int argc, char **argv)
 			ed3 = (ep3-ep3_prev)/dt;
 			edyaw = (eyaw - eyaw_prev)/dt;
 
-
+			
 
             ades1 = kp1*ep1 + kd1*ed1 + 0;  //trajectory acceleration set to 0
             ades2 = kp2*ep2 + kd2*ed2 + 0;
@@ -210,7 +217,7 @@ int main(int argc, char **argv)
             phi = 1/9.8*(-1*ades2);
             theta = 1/9.8*(ades1);
             u1 = ades3;
-            ROS_INFO("Phi,Theta,u1: [%f,%f,%f]", phi, theta, u1);
+            //ROS_INFO("Phi,Theta,u1: [%f,%f,%f]", phi, theta, u1);
 
             rc_out.data.clear();
             rc_out.data.push_back(phi);
@@ -221,12 +228,16 @@ int main(int argc, char **argv)
             autoroll  = (int)((double)(phi)*controlScale+1500);
             autoyaw = (int)((double)ades_yaw*controlScale+1500);
 
+            //ROS_INFO("Yaw_error d term: %f", edyaw);
+            //ROS_INFO("yaw eyaw: %f %f", yaw, eyaw);
+            ROS_INFO("Commands [PRY] [%d,%d,%d]", autopitch,autoroll,autoyaw);
+
             rc_out1.data.clear();
             rc_out1.data.push_back((uint8_t)(autoroll/256));
             rc_out1.data.push_back((uint8_t)(autoroll%256));
             rc_out1.data.push_back((uint8_t)(autopitch/256));
             rc_out1.data.push_back((uint8_t)(autopitch%256));
-            rc_out1.data.push_back((uint8_t)(autoyaw%256));
+            rc_out1.data.push_back((uint8_t)(autoyaw/256));
             rc_out1.data.push_back((uint8_t)(autoyaw%256));
 
             ser.write(rc_out1.data);
