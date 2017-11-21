@@ -1,4 +1,6 @@
 
+#include <elapsedMillis.h>
+
 //hardware
 // Betaflight likes to have 115200 baud rate for serial rc input, 9600 doesn't work. other baud rates haven't been tested.
 //xbee series 1, foca v2.2 board
@@ -22,9 +24,10 @@ bool discard = false;
 bool useTK1 = false;
 int numChannels = 0;
 
-int TK1_roll = 1500;
-int TK1_pitch = 1500;
-int TK1_yaw = 1500;
+uint16_t TK1_roll = 1500;
+uint16_t TK1_pitch = 1500;
+uint16_t TK1_yaw = 1500;
+uint16_t TK1_throttle = 1000;
 
 int vicon_pitch = 1500;
 int vicon_roll = 1500;
@@ -37,6 +40,10 @@ uint8_t bh_r;
 uint8_t data[6];
 
 bool hasNew = false;
+
+elapsedMillis timeElapsed;
+
+bool killSwitch = false;
 
 
 
@@ -51,7 +58,7 @@ void setup() {
   while(Serial1.available()){
     Serial1.read();
   }
- 
+  
 
 }
 
@@ -61,11 +68,20 @@ void loop() {
 
 
   unsigned char bytecount = 0;
-  while (Serial.available() && bytecount < 6) {
-    data[bytecount] = Serial.read();
-    
-    bytecount++;
+  if(Serial.available()){
+    while (Serial.available() && bytecount < 6) {
+      data[bytecount] = Serial.read();
+      
+      bytecount++;
+    }
+    timeElapsed = 0;
   }
+
+   if(timeElapsed > 200){
+    killSwitch = true;
+    return;
+   }
+  //Serial.println(timeElapsed);
 
   if (bytecount > 0) {
     vicon_pitch = data[0] * 256 + data[1];
@@ -137,15 +153,16 @@ void loop() {
       useTK1 = false;
     }
 
-   
+ 
+    
     if (useTK1) {
 
-        TK1_roll = rcValue[1]-vicon_roll+1500;
-        TK1_pitch = rcValue[2]+vicon_pitch-1500;
-        TK1_yaw = rcValue[3]+vicon_yaw -1500;
+      TK1_roll = rcValue[1]-vicon_roll+1500;
+      TK1_pitch = rcValue[2]+vicon_pitch-1500;
+      TK1_yaw = rcValue[3]+vicon_yaw -1500;
 
-        Serial.println(TK1_yaw);
-        
+      //Serial.println(TK1_yaw);
+      
         //Serial.print(TK1_roll);
         //Serial.print("  ");
         //Serial.println(TK1_pitch);
