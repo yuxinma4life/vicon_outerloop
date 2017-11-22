@@ -27,3 +27,9 @@ include_directories(
    vicon_outerloop_node
    ${catkin_LIBRARIES}
  )
+
+ add_executable(vicon_kill_node src/vicon_kill_node.cpp)
+  target_link_libraries(
+   vicon_kill_node
+   ${catkin_LIBRARIES}
+ )

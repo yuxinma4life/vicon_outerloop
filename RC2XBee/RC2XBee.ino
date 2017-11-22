@@ -24,20 +24,22 @@ bool discard = false;
 bool useTK1 = false;
 int numChannels = 0;
 
-uint16_t TK1_roll = 1500;
-uint16_t TK1_pitch = 1500;
-uint16_t TK1_yaw = 1500;
-uint16_t TK1_throttle = 1000;
+int TK1_roll = 1500;
+int TK1_pitch = 1500;
+int TK1_yaw = 1500;
+int TK1_throttle = 1000;
 
 int vicon_pitch = 1500;
 int vicon_roll = 1500;
 int vicon_yaw = 1500;
+int vicon_throttle = 1000;
 
 uint8_t bl_r;
 uint8_t bh_r_1;
 uint8_t bh_r;
 
-uint8_t data[6];
+uint8_t data[8];
+// uint8_t data[16];
 
 bool hasNew = false;
 
@@ -45,7 +47,7 @@ elapsedMillis timeElapsed;
 
 bool killSwitch = false;
 
-
+int throttle_range = 100;
 
 void setup() {
 
@@ -58,6 +60,9 @@ void setup() {
   while(Serial1.available()){
     Serial1.read();
   }
+  while(Serial.available()){
+    Serial.read();
+  }
   
 
 }
@@ -69,44 +74,45 @@ void loop() {
 
   unsigned char bytecount = 0;
   if(Serial.available()){
-    while (Serial.available() && bytecount < 6) {
+    while (Serial.available() && bytecount < 8) {
       data[bytecount] = Serial.read();
       
       bytecount++;
     }
+    //Serial.println(sizeof(data)/sizeof(uint8_t));
     timeElapsed = 0;
   }
+  // for(int i=0; i<sizeof(data)/sizeof(uint8_t); i++){
+  // Serial.print(data[i]+'\t');
+  // }
+  // Serial.println();
+  //Serial.println(bytecount);
 
-   if(timeElapsed > 200){
-    killSwitch = true;
-    return;
-   }
+  // if(timeElapsed > 200){
+  //  killSwitch = true;a
+   // return;
+   //}
   //Serial.println(timeElapsed);
-
+  // Serial.println("location0");
   if (bytecount > 0) {
     vicon_pitch = data[0] * 256 + data[1];
     vicon_roll = data[2] * 256 + data[3];
     vicon_yaw = data[4]*256 + data[5];
+    vicon_throttle = data[6]*256 + data[7];
     //Serial.print(TK1_roll);
     //Serial.print("  ");
     //Serial.println(TK1_pitch);
   }
+  // Serial.println("location1");
   if (Serial1.available()) {
     hasNew = true;
-    
+  // Serial.println("location2");
   }
 
   while (Serial1.available()) {
-    
+
     rc_in[i] = Serial1.read();
     i++;
-  //  Serial.println(i);
-   // if(i>15){
-    //  while(Serial1.available()){
-   //     Serial1.read();
-   //   }
-   //   exit;
-    //}
   }
   i = 0;
 
@@ -115,6 +121,7 @@ void loop() {
 
 
   if (hasNew) {
+    // Serial.println("location3");
     for (int b = 2; b < 16; b += 2) {
       uint8_t bh = rc_in[b];
       uint8_t bl = rc_in[b + 1];
@@ -153,7 +160,7 @@ void loop() {
       useTK1 = false;
     }
 
- 
+    
     
     if (useTK1) {
 
@@ -161,14 +168,19 @@ void loop() {
       TK1_pitch = rcValue[2]+vicon_pitch-1500;
       TK1_yaw = rcValue[3]+vicon_yaw -1500;
 
-      //Serial.println(TK1_yaw);
+      if(vicon_throttle>(1500+throttle_range)){
+        vicon_throttle = 1500 + throttle_range;
+      } 
+      TK1_throttle = rcValue[0] + vicon_throttle - 1500;
+
+      // Serial.println(TK1_throttle);
       
         //Serial.print(TK1_roll);
         //Serial.print("  ");
         //Serial.println(TK1_pitch);
         //write TK1 commands
 
-      generateDsmxData(rcValue[0], TK1_roll, TK1_pitch, TK1_yaw, rcValue[4], rcValue[5]);
+      generateDsmxData(TK1_throttle, TK1_roll, TK1_pitch, TK1_yaw, rcValue[4], rcValue[5]);
     } else {
       //pass on the RC commands
       generateDsmxData(rcValue[0], rcValue[1], rcValue[2], rcValue[3], rcValue[4], rcValue[5]);
@@ -178,9 +190,7 @@ void loop() {
 
     if (hasNew) {
       for (int j = 0; j < 16; j++) {
-        //write output RC signal to flight controller
-        //Serial1.write(rc_out[j]);
-        //Serial.write(rc_out[j]);
+
         Serial2.write(rc_out[j]);
       }
       hasNew = false;
@@ -188,18 +198,7 @@ void loop() {
 
 
   }
-  /*
 
-  Serial.print(rcValue[0]);
-  Serial.print("  ");
-  Serial.print(rcValue[1]);
-  Serial.print("  ");
-  Serial.print(rcValue[2]);
-  Serial.print("  ");
-  Serial.println(rcValue[3]);
-
-
-  */
 
   delay(10);
 
@@ -270,4 +269,5 @@ void generateDsmxData(int throttle, int roll, int pitch, int yaw, int AUX1, int 
   rc_out[15] = bl_r;
 
 }
+
 

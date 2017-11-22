@@ -5,6 +5,7 @@
 #include "nav_msgs/Odometry.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "std_msgs/Float64MultiArray.h"
+#include "std_msgs/Bool.h"
 #include <serial/serial.h>
 #include <iostream>
 #include "tf/transform_datatypes.h"
@@ -22,6 +23,10 @@ double kd1 = 0.5;
 double kd2 = 0.5;
 double kd3 = 0.5;
 double kd_yaw = 0.001;
+
+double ki1 = 0.001;
+double ki2 = 0.001;
+double ki3 = 0.001;
 
 /*
  * variable needed to calculate velocity from slamdunk pose
@@ -51,7 +56,7 @@ double a3 = 0;
 //3D point target
 double rt1 = 0;
 double rt2 = 0;
-double rt3 = 1;
+double rt3 = 0;
 double yaw_t = 180;
 
 double vt1 = 0;
@@ -74,6 +79,10 @@ double ed2 = 0;
 double ed3 = 0;
 double edyaw = 0;
 
+double ei1 = 0;
+double ei2 = 0;
+double ei3 = 0;
+
 double ades1 = 0;
 double ades2 = 0;
 double ades3 = 0;
@@ -92,27 +101,33 @@ double controlScale = 500;
 int autopitch = 1500;
 int autoroll = 1500;
 int autoyaw = 1500;
+int autothrottle = 1000;
 
 std_msgs::Float64MultiArray rc_out;
 std_msgs::String rc_out1;
 
+bool to_kill = false;
+int i_reset = 0;
+
 //serial 
 serial::Serial ser;
 
+void vicon_kill_callback(const std_msgs::Bool::ConstPtr& msg){
+	to_kill = msg->data;
+}
 
-void chatterCallback(const nav_msgs::Odometry::ConstPtr& msg)
-{
+void chatterCallback(const nav_msgs::Odometry::ConstPtr& msg){
 	r1 = msg->pose.pose.position.x;
 	r2 = msg->pose.pose.position.y;
 	r3 = msg->pose.pose.position.z;
 	tf::Quaternion q(msg->pose.pose.orientation.x,msg->pose.pose.orientation.y,msg->pose.pose.orientation.z,msg->pose.pose.orientation.w);
 	tf::Matrix3x3 m(q);
 	double roll, pitch;
-    m.getRPY(roll, pitch, yaw);
-    yaw = (yaw/(pi))*180.0;
-    if(yaw <0) yaw+= 360.0;
-    roll = (roll/(2*pi))*180.0;
-    pitch = (pitch/(2*pi))*180.0;
+	m.getRPY(roll, pitch, yaw);
+	yaw = (yaw/(pi))*180.0;
+	if(yaw <0) yaw+= 360.0;
+	roll = (roll/(2*pi))*180.0;
+	pitch = (pitch/(2*pi))*180.0;
     //ROS_INFO("roll pitch yaw: %f %f %f", roll, pitch, yaw); 
     //ROS_INFO("yaw: %f",yaw);
 
@@ -138,9 +153,11 @@ int main(int argc, char **argv)
 
 	n.getParam("/outerloop/kp_p",kp1);
 	n.getParam("/outerloop/kd_p",kd1);
+	n.getParam("/outerloop/ki_p",ki1);
 
 	n.getParam("/outerloop/kp_r",kp2);
 	n.getParam("/outerloop/kd_r",kd2);
+	n.getParam("/outerloop/ki_r",ki2);
 
 	n.getParam("/outerloop/kp_y",kp_yaw);
 	n.getParam("/outerloop/kd_y",kd_yaw);
@@ -149,13 +166,14 @@ int main(int argc, char **argv)
 	std::string quad_name = argv[1];
 	std::string quad_topic = "/" + quad_name + "/odom";
 	ros::Subscriber sub = n.subscribe(quad_topic, 1000, chatterCallback);
+	ros::Subscriber sub_kill = n.subscribe("/kill", 1000, vicon_kill_callback);
 	ros::Publisher read_pub = n.advertise<std_msgs::Float64MultiArray>("write", 1000);
 
 	ROS_INFO("INITIALIZED PARAMETERS: \n [QuadTopic: %s] \n [Port: %s] \n [PD: (Pitch,Roll,Yaw) ==> (%f,%f) (%f,%f) (%f,%f)]",quad_name.c_str(),port.c_str(),kp1,kd1,kp2,kd2,kp3,kd3);
     //initiate serial port
 	try
 	{
-        // ELKA (Vikram lab flight controller) boud rate = 38400
+        // ELKA (Vikram lab flight controller) baud rate = 38400
 		ser.setPort(port);
 		ser.setBaudrate(115200);
 		serial::Timeout to = serial::Timeout::simpleTimeout(1000);
@@ -175,14 +193,22 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	ros::Rate loop_rate(30);
+	ros::Rate loop_rate(60);
 	while(ros::ok()){
 		ros::spinOnce();
         //ROS_INFO("Position: [%f,%f,%f]", r1, r2, r3);
 
         //calculate delta time
-        seconds = (double)ros::Time::now().toSec();
+		seconds = (double)ros::Time::now().toSec();
 		dt = seconds - seconds_prev;
+		if(i_reset > 500){
+			// ROS_INFO("RESET");
+			i_reset = 0;
+			ei1 = 0;
+			ei2 = 0;
+			ei3 = 0;
+		}
+
 		if(dt!=0) {
             //ROS_INFO("[%f]", dt);
 
@@ -207,11 +233,13 @@ int main(int argc, char **argv)
 			ed3 = (ep3-ep3_prev)/dt;
 			edyaw = (eyaw - eyaw_prev)/dt;
 
-			
+			ei1 = ei1 + ep1;
+			ei2 = ei2 + ep2;
+			ei3 = ei3 + ep3;
 
-            ades1 = kp1*ep1 + kd1*ed1 + 0;  //trajectory acceleration set to 0
-            ades2 = kp2*ep2 + kd2*ed2 + 0;
-            ades3 = kp3*ep3 + kd3*ed3 + 0;
+            ades1 = kp1*ep1 + kd1*ed1 + ki1*ei1;  //trajectory acceleration set to 0
+            ades2 = kp2*ep2 + kd2*ed2 + ki2*ei2;
+            ades3 = kp3*ep3 + kd3*ed3 + ki3*ei3;
             ades_yaw = kp_yaw*eyaw + kd_yaw*edyaw + 0;
 
             phi = 1/9.8*(-1*ades2);
@@ -227,10 +255,13 @@ int main(int argc, char **argv)
             autopitch = (int)((double)(theta)*controlScale+1500);
             autoroll  = (int)((double)(phi)*controlScale+1500);
             autoyaw = (int)((double)ades_yaw*controlScale+1500);
+            autothrottle = (int)((double)ades3*controlScale+1500);
 
             //ROS_INFO("Yaw_error d term: %f", edyaw);
             //ROS_INFO("yaw eyaw: %f %f", yaw, eyaw);
-            ROS_INFO("Commands [PRY] [%d,%d,%d]", autopitch,autoroll,autoyaw);
+            //ROS_INFO("Commands [PRY] [%d,%d,%d]", autopitch,autoroll,autoyaw);
+
+            ROS_INFO("Thrust: %d", autothrottle);
 
             rc_out1.data.clear();
             rc_out1.data.push_back((uint8_t)(autoroll/256));
@@ -239,8 +270,12 @@ int main(int argc, char **argv)
             rc_out1.data.push_back((uint8_t)(autopitch%256));
             rc_out1.data.push_back((uint8_t)(autoyaw/256));
             rc_out1.data.push_back((uint8_t)(autoyaw%256));
-
-            ser.write(rc_out1.data);
+            rc_out1.data.push_back((uint8_t)(autothrottle/256));
+            rc_out1.data.push_back((uint8_t)(autothrottle%256));
+            //ROS_INFO("%f",(float)(sizeof(rc_out1.data)/sizeof(uint8_t)));
+            if(!to_kill){
+            	ser.write(rc_out1.data);
+            }	
 
             // //update previous records
             // r1_prev = r1;
@@ -261,7 +296,7 @@ int main(int argc, char **argv)
 
         }
         loop_rate.sleep();
-
+        i_reset++;
     }
 
 

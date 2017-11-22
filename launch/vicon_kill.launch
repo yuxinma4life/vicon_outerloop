@@ -1,0 +1,18 @@
+<launch>
+    <arg name="quad_name" value="quad_small_1" />
+    <include file="$(find vicon)/launch/vicon.launch"/>
+    <include file="$(find vicon_odom)/launch/vicon_odom.launch">
+        <arg name="model" value="$(arg quad_name)" />
+    </include>
+    <node name="vicon_kill"
+        pkg="vicon_outerloop"
+        type="vicon_kill_node"
+        args="$(arg quad_name)" 
+        respawn="true"
+        output="screen">
+
+        <param name="thresh_x" value="2.5" />
+        <param name="thresh_y" value="2.5" />
+        <param name="thresh_z" value="2.0" />
+    </node>
+</launch>
